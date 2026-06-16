@@ -165,3 +165,23 @@ the Great Library codex legacy, **Economic** tracked the happiness constraint as
 the empire grew, **Expansion** drove the found-then-settle-#2 tempo, **Culture**
 aimed at the Wonders-of-the-Ancient-World legacy, and **Military** stayed in
 early-warning mode (no threats) — each grounded in real KB retrieval for the turn's state.
+
+---
+
+## Live verification (Turn 3, resumed da Vinci game)
+
+The panel was confirmed **live in-game**. On opening the AI Advisor button:
+
+1. The **Advisor Council** section first shows a spinner + an animated
+   *"The advisors are deliberating…"* indicator (`screenshots/panel-deliberating.jpg`).
+2. After deliberating it reveals five colour-coded advice cards
+   (`screenshots/panel-advice.jpg`), computed from the live empire state:
+   - **Expansion** — "One city so far. Build a Migrant and settle a second town…"
+   - **Military** — "No combat unit yet — train a Warrior to garrison your capital…"
+   - **Science** — "⚠ No technology selected — choose one now; idle research wastes science…"
+   - **Culture** — "Pursuing Chiefdom. Aim for a Tradition slot and keep the Wonders of the Ancient World legacy in view."
+   - **Economic** — "Athênai has no active production — set a build order; idle hammers are wasted."
+
+The Science and Economic cards correctly flagged the two real problems in this
+save (no research selected, no city production set) — the same gaps that were
+visible in the live turn-3 state.
