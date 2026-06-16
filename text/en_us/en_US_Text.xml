@@ -14,7 +14,13 @@
 			<Text>AI Advisor</Text>
 		</Row>
 		<Row Tag="LOC_AI_ADVISOR_PANEL_INTRO">
-			<Text>Greetings, leader. I am your AI Advisor. Here is a summary of your empire this turn.</Text>
+			<Text>Greetings, leader. Your council has reviewed the state of the empire.</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_SECTION_COUNCIL">
+			<Text>Advisor Council</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_THINKING">
+			<Text>The advisors are deliberating</Text>
 		</Row>
 		<Row Tag="LOC_AI_ADVISOR_SECTION_EMPIRE">
 			<Text>Empire Overview</Text>
@@ -23,7 +29,7 @@
 			<Text>Yields Per Turn</Text>
 		</Row>
 		<Row Tag="LOC_AI_ADVISOR_FOOTER">
-			<Text>More advice coming soon...</Text>
+			<Text>Advice updates each turn based on the state of your empire.</Text>
 		</Row>
 	</EnglishText>
 </Database>

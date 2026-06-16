@@ -13,13 +13,28 @@ const content = `
 		class="font-title-xl self-center"
 	></fxs-header>
 	<div
-		class="ai-advisor__intro font-body-base text-accent-2 text-center max-w-128 my-4"
+		class="ai-advisor__intro font-body-base text-accent-2 text-center max-w-128 my-3"
 		data-l10n-id="LOC_AI_ADVISOR_PANEL_INTRO"
 	></div>
 
 	<fxs-header
-		title="LOC_AI_ADVISOR_SECTION_EMPIRE"
+		title="LOC_AI_ADVISOR_SECTION_COUNCIL"
 		class="font-title-lg self-center mt-2"
+		filigree-style="none"
+	></fxs-header>
+
+	<!-- Deliberation indicator (shown first, then replaced by advice). -->
+	<div class="ai-advisor__thinking flex flex-col items-center justify-center w-128 my-4">
+		<div class="ai-advisor__spinner"></div>
+		<div class="ai-advisor__thinking-text font-body-base text-accent-3 italic mt-3"></div>
+	</div>
+
+	<!-- Advisor advice cards (filled in after deliberation). -->
+	<div class="ai-advisor__council flex flex-col w-128 my-1"></div>
+
+	<fxs-header
+		title="LOC_AI_ADVISOR_SECTION_EMPIRE"
+		class="font-title-lg self-center mt-4"
 		filigree-style="none"
 	></fxs-header>
 	<div class="ai-advisor__empire flex flex-col w-128 my-2"></div>
