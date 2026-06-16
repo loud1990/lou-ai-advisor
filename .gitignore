@@ -6,3 +6,6 @@ __pycache__/
 # Editor / OS
 *.swp
 .DS_Store
+
+# Generated KB (rebuild: python kb/ingest.py build)
+kb/kb.sqlite
