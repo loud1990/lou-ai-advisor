@@ -60,16 +60,34 @@ were emitted live by the mod and read from `UI.log`.)
 
 ---
 
-## Note on turns 4–10
+## Note on turns 4–10 — now played live end-to-end
 
-The live game on this machine repeatedly failed to stay rendered past the early
-turns (the Proton/DXVK build hangs or crashes within minutes; it ran long enough
-to emit **real** states for turns 1–3 above). To complete the ten-turn advisor
-log, turns 4–10 below use a **projected** continuation of the real turn-3 state
-(`harness/projected_states.py`), run through the **same** `Council` pipeline —
-identical KB retrieval and prompt assembly. They are labelled *(projected)*.
-When the game is played live, `harness/extract_states.py` ingests the real
-emitted states automatically and the log is generated the same way.
+Earlier these turns could only be **projected**: the default Proton/DX12 (VKD3D)
+build hung within a few turns. That is fixed. Two harness changes let the game
+play **ten turns live, unattended**:
+
+1. **Native Vulkan renderer** (`tools/launch.sh vulkan`) instead of the default
+   DX12→VKD3D path — the game is now stable for the full run (window title reads
+   "… (Vulkan)"). See project memory `civ7-vulkan-launch-stability`.
+2. **In-engine autoplay** (`ui/ai-advisor-autoplay.js`) that runs *inside* the
+   game process (so it works with the window unfocused) and, each 3-second
+   sweep, clears every blocker that gates end-turn:
+   - **city-growth tile placement** — picks the best-yield expand plot and
+     commits it (`CityCommands.EXPAND`);
+   - **empty research** — sets a researchable node (`SET_TECH_TREE_NODE`);
+   - **empty production** — builds a unit (`CityOperations.BUILD`; note an empty
+     slot reports hash `-1`, not null);
+   - **idle / stacked units** — auto-explores them (a Scout built on the city
+     tile would otherwise stack and block the turn);
+   - then **ends the turn** (`GameContext.sendTurnComplete`), powering through
+     the "New Tech Unlocked" briefing popups.
+
+   The Python driver (`harness/play.py`) sets the autoplay's stop-turn and
+   observes UI.log; `harness/extract_states.py` ingests the real emitted states.
+
+A live run from the turn-2 save reached **turn 12 hands-free** — the map below
+was explored and the borders expanded entirely by the autoplay. The advisor
+council still runs over the real per-turn states exactly as before.
 
 ---
 

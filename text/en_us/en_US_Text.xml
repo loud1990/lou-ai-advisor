@@ -19,6 +19,24 @@
 		<Row Tag="LOC_AI_ADVISOR_SECTION_COUNCIL">
 			<Text>Advisor Council</Text>
 		</Row>
+		<Row Tag="LOC_AI_ADVISOR_TAB_COUNCIL">
+			<Text>Council</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_TAB_EMPIRE">
+			<Text>Empire</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_TAB_TRIUMPHS">
+			<Text>Victory</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_SECTION_TRIUMPHS">
+			<Text>Victory Conditions to Target</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_TRIUMPHS_INTRO">
+			<Text>Test of Time has four Victory Conditions, each decided in the Modern Age by having the greatest of a single measure: Dominion (Military), Tourism (Cultural), GDP (Economic), and Innovation (Scientific). Build your lead now by completing this Age's Triumphs. Below is how each victory is won, your standing, and whether you are leading.</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_TRIUMPHS_NONE">
+			<Text>No victory conditions are available right now.</Text>
+		</Row>
 		<Row Tag="LOC_AI_ADVISOR_THINKING">
 			<Text>The advisors are deliberating</Text>
 		</Row>

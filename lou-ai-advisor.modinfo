@@ -22,6 +22,7 @@
 					<Item>ui/ai-advisor-panel.js</Item>
 					<Item>ui/ai-advisor-button.js</Item>
 					<Item>ui/ai-advisor-state.js</Item>
+					<Item>ui/ai-advisor-autoplay.js</Item>
 				</UIScripts>
 				<UpdateText>
 					<Item>text/en_us/en_US_Text.xml</Item>
