@@ -22,6 +22,12 @@
 		<Row Tag="LOC_AI_ADVISOR_TAB_COUNCIL">
 			<Text>Council</Text>
 		</Row>
+		<Row Tag="LOC_AI_ADVISOR_TAB_DEDICATIONS">
+			<Text>Dedications</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_DEDICATIONS_INTRO">
+			<Text>At the dawn of each Age, dedicate yourself to 3 Triumphs. Complete a Triumph to bank its Legacy Points and unlock its Dedication for the next Age. Your council will track each goal and tell you whether you are on pace — and exactly what to build or do to get there.</Text>
+		</Row>
 		<Row Tag="LOC_AI_ADVISOR_TAB_EMPIRE">
 			<Text>Empire</Text>
 		</Row>

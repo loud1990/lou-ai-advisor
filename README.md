@@ -11,6 +11,16 @@ a future AI-driven advisor feature.
   `ModdingRegistry` mod slot (`panel-sub-system-dock-mod-slot`), with a fallback
   injector for UI reloads.
 - Clicking it opens a framed panel (`ai-advisor-panel`) with:
+  - **Dedications** — at the dawn of each Age the advisors ask you to **dedicate
+    the Age to 3 Triumphs** (Major Legacies). Pick 3 from a grouped, selectable
+    list of the Age's available Triumphs; the choice is remembered per Age. Once
+    chosen, the tab becomes a live **tracking board**: each dedication shows a
+    progress bar, an **on-track verdict** (your completion vs the Age clock —
+    On track / Slightly behind / Behind / Complete) and concrete, advisor-voiced
+    **guidance on what to build or do** to get there. "Change Selection" re-opens
+    the picker. Read live from `player.Legacies` (`isValidLegacy`, `isTriggered`,
+    `getProgress`) and the Age clock (`Game.AgeProgressManager`). Completing a
+    Triumph banks its Legacy Points and unlocks its Dedication for the next Age.
   - **Victory** — the four **Test of Time** Victory Conditions to target, each
     decided in the Modern Age by having the greatest of a single measure:
     **Dominion** (Military), **Tourism** (Cultural), **GDP** (Economic), and
@@ -33,7 +43,8 @@ lou-ai-advisor.modinfo          # mod manifest (game-scope UIScripts + text)
 ui/ai-advisor-button.js         # dock button component + registration
 ui/ai-advisor-panel.js          # panel component (Panel subclass)
 ui/ai-advisor-panel.html.js     # panel markup (fxs-frame)
-ui/ai-advisor-state.js          # emits per-turn empire state to UI.log
+ui/ai-advisor-dedications.js    # per-Age "pick 3 Triumphs" store + tracking/guidance (shared)
+ui/ai-advisor-state.js          # emits per-turn empire + dedication state to UI.log
 ui/ai-advisor-autoplay.js       # in-engine autoplay (growth/research/production/units/end-turn)
 text/en_us/en_US_Text.xml       # localized strings
 tools/launch.sh                 # launch the NATIVE Vulkan renderer via Steam (stable)
@@ -47,6 +58,19 @@ tools/xui.py                    # X11 screenshot/input helper used for testing
 ✅ **Verified working in Civ 7 (build 1.4.0).** The AI Advisor button appears in
 the sub-system dock and opens the panel with live game data (turn, age, leader,
 civ, settlements, per-turn yields). See `screenshots/ai-advisor-panel-open.jpg`.
+
+✅ **Dedications verified live (turn 18, Antiquity).** Opening the panel defaults
+to the new **Dedications** tab, which asked "the dawn of Antiquity — choose 3
+Triumphs to dedicate this Age," listing the real Major Triumphs grouped by
+attribute (e.g. *Wonders of the Ancient World* "Build 7 Wonders", *Code of
+Hammurabi*, *Pulling the Strings* "Become Suzerain of 4 City-States") with live
+progress. Selecting 3 and confirming switched to the tracking board: *Wonders of
+the Ancient World* read **Behind · 0/7** with a Culture Advisor push to raise
+Wonders, *Code of Hammurabi* read **On track · 1/9** — each with a progress bar
+and a concrete action list. The state emitter logged
+`AI_ADVISOR_DEDICATIONS: {"chosen":[…],"needsPrompt":…,"ageFrac":0.09,"items":[…]}`.
+See `screenshots/dedications-picker.jpg`, `dedications-3-selected.jpg`,
+`dedications-tracking.jpg` and project memory `civ7-dedications-feature`.
 
 ✅ **Victory tab verified live (turn 13, Antiquity).** The panel's default tab
 lists the four Test of Time Victory Conditions — Military (Dominion), Cultural

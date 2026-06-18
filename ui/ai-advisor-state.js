@@ -8,6 +8,8 @@
  * The Python harness tails UI.log, parses these lines, and feeds them to the
  * advisor council. console.error is used because that is what reaches UI.log.
  */
+import { getChosen, hasChosenThisAge, getTracking } from './ai-advisor-dedications.js';
+
 const TAG = "AI_ADVISOR_STATE:";
 
 const YIELDS = [
@@ -180,12 +182,31 @@ function gatherVictoryLog(player) {
 	};
 }
 
+// The leader's 3 chosen Dedications for the current Age + live tracking, emitted
+// on its own line so the external council can guide toward the chosen goals.
+const DEDICATION_TAG = "AI_ADVISOR_DEDICATIONS:";
+
+function gatherDedicationLog() {
+	const chosen = safe(() => getChosen(), []) || [];
+	const tracking = safe(() => getTracking(), { items: [], ageFraction: 0 });
+	return {
+		chosen, // LegacyTypes
+		needsPrompt: !safe(() => hasChosenThisAge(), false),
+		ageFrac: Math.round((tracking.ageFraction || 0) * 100) / 100,
+		items: (tracking.items || []).map((t) => ({
+			n: t.name, attr: t.attr, c: t.cur, t: t.total,
+			done: t.triggered, v: t.verdict?.tone, g: t.guidance,
+		})),
+	};
+}
+
 function emit() {
 	try {
 		const player = safe(() => Players.get(GameContext.localPlayerID), null);
 		const state = gatherState();
 		console.error(`${TAG} ${JSON.stringify(state)}`);
 		console.error(`${VICTORY_TAG} ${JSON.stringify(gatherVictoryLog(player))}`);
+		console.error(`${DEDICATION_TAG} ${JSON.stringify(gatherDedicationLog())}`);
 	} catch (e) {
 		console.error("AI_ADVISOR_STATE_ERROR:", e);
 	}

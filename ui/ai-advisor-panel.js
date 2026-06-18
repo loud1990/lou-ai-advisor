@@ -3,6 +3,10 @@ import { MustGetElement } from '/core/ui/utilities/utilities-dom.js';
 import '/core/ui/components/fxs-tab-bar.js';
 import '/core/ui/components/fxs-scrollable.js';
 import content from './ai-advisor-panel.html.js';
+import {
+	getChosen, setChosen, clearChosen, hasChosenThisAge,
+	getAvailableTriumphs, getTracking,
+} from './ai-advisor-dedications.js';
 
 /**
  * AI Advisor panel.
@@ -45,9 +49,31 @@ const STYLE = `
 .ai-advisor__triumph-meta{display:flex;flex-direction:row;justify-content:space-between;color:#bcb6a8;font-size:0.8rem;margin-top:0.2rem;}
 .ai-advisor__triumph-section{margin:0.6rem 0 0.15rem 0;padding-bottom:0.15rem;border-bottom:0.07rem solid rgba(224,192,96,0.35);letter-spacing:0.03em;}
 .ai-advisor__triumph-section:first-child{margin-top:0;}
+/* Dedications: pickable Triumph cards + tracking */
+.ai-advisor__ded-prompt{color:#e0c060;text-align:center;margin:0.1rem 0 0.5rem 0;}
+.ai-advisor__ded-count{color:#bcb6a8;text-align:center;font-size:0.85rem;margin-bottom:0.4rem;}
+.ai-advisor__ded{display:flex;flex-direction:column;padding:0.5rem 0.7rem;margin:0.28rem 0;background:rgba(0,0,0,0.28);border-left:0.28rem solid #888;border-radius:0.25rem;cursor:pointer;transition:background 0.2s ease,opacity 0.2s ease;}
+.ai-advisor__ded:hover{background:rgba(255,255,255,0.06);}
+.ai-advisor__ded.selected{background:rgba(224,192,96,0.16);box-shadow:inset 0 0 0 0.12rem rgba(224,192,96,0.6);}
+.ai-advisor__ded.disabled{opacity:0.45;cursor:default;}
+.ai-advisor__ded-head{display:flex;flex-direction:row;align-items:center;justify-content:space-between;}
+.ai-advisor__ded-title{font-weight:700;display:flex;flex-direction:row;align-items:center;}
+.ai-advisor__ded-title-icon{margin-right:0.4rem;font-size:1.1rem;}
+.ai-advisor__ded-pill{font-size:0.75rem;padding:0.05rem 0.4rem;border-radius:0.7rem;background:rgba(0,0,0,0.4);white-space:nowrap;margin-left:0.5rem;}
+.ai-advisor__ded-check{font-weight:700;margin-left:0.4rem;}
+.ai-advisor__ded-req{color:#d9d2c4;font-size:0.85rem;margin-top:0.2rem;}
+.ai-advisor__ded-reward{color:#bfe3c0;font-size:0.85rem;margin-top:0.25rem;}
+.ai-advisor__ded-reward-label{color:#6fcf97;font-weight:700;margin-right:0.25rem;}
+.ai-advisor__ded-guide{color:#e8e2d4;font-size:0.85rem;margin-top:0.3rem;}
+.ai-advisor__ded-actions-list{margin:0.3rem 0 0 0.2rem;color:#bcb6a8;font-size:0.82rem;}
+.ai-advisor__ded-actions-list>div{margin:0.08rem 0;}
+.ai-advisor__btn{padding:0.35rem 1.1rem;margin:0 0.3rem;border-radius:0.3rem;background:rgba(224,192,96,0.85);color:#1a1407;font-weight:700;cursor:pointer;border:none;}
+.ai-advisor__btn.disabled{background:rgba(255,255,255,0.14);color:#8c867a;cursor:default;}
+.ai-advisor__btn.secondary{background:rgba(255,255,255,0.12);color:#e8e2d4;}
 `;
 
 const TABS = [
+	{ id: "dedications", label: "LOC_AI_ADVISOR_TAB_DEDICATIONS" },
 	{ id: "council", label: "LOC_AI_ADVISOR_TAB_COUNCIL" },
 	{ id: "triumphs", label: "LOC_AI_ADVISOR_TAB_TRIUMPHS" },
 	{ id: "empire", label: "LOC_AI_ADVISOR_TAB_EMPIRE" },
@@ -91,10 +117,13 @@ class AiAdvisorPanel extends Panel {
 	thinkingText = null;
 	councilEl = null;
 	triumphsContainer = null;
+	dedicationsContainer = null;
+	dedicationsActions = null;
 	empireContainer = null;
 	yieldsContainer = null;
 	_dotTimer = null;
 	_revealTimer = null;
+	_pendingSelection = null; // working set of LegacyTypes during picking
 
 	onInitialize() {
 		super.onInitialize();
@@ -102,6 +131,7 @@ class AiAdvisorPanel extends Panel {
 		this.closeButton = MustGetElement("fxs-close-button", this.Root);
 		this.tabBar = MustGetElement(".ai-advisor__tabs", this.Root);
 		this.tabPanels = {
+			dedications: MustGetElement(".ai-advisor__tab-dedications", this.Root),
 			council: MustGetElement(".ai-advisor__tab-council", this.Root),
 			triumphs: MustGetElement(".ai-advisor__tab-triumphs", this.Root),
 			empire: MustGetElement(".ai-advisor__tab-empire", this.Root),
@@ -110,6 +140,8 @@ class AiAdvisorPanel extends Panel {
 		this.thinkingText = MustGetElement(".ai-advisor__thinking-text", this.Root);
 		this.councilEl = MustGetElement(".ai-advisor__council", this.Root);
 		this.triumphsContainer = MustGetElement(".ai-advisor__triumphs", this.Root);
+		this.dedicationsContainer = MustGetElement(".ai-advisor__dedications", this.Root);
+		this.dedicationsActions = MustGetElement(".ai-advisor__dedications-actions", this.Root);
 		this.empireContainer = MustGetElement(".ai-advisor__empire", this.Root);
 		this.yieldsContainer = MustGetElement(".ai-advisor__yields", this.Root);
 		this.enableOpenSound = true;
@@ -132,6 +164,7 @@ class AiAdvisorPanel extends Panel {
 		this.buildEmpireInfo();
 		this.buildYieldInfo();
 		this.buildTriumphs();
+		this.buildDedications();
 		this.startDeliberation();
 	}
 
@@ -145,8 +178,10 @@ class AiAdvisorPanel extends Panel {
 		this.tabBar.setAttribute("tab-items", JSON.stringify(
 			TABS.map((t) => ({ id: t.id, label: t.label }))
 		));
-		this.tabBar.setAttribute("selected-tab-index", "1");
-		this.showTab("triumphs");
+		// Open on Dedications so the advisors greet the leader with the per-Age
+		// "pick 3 Triumphs" prompt (or the live tracking once chosen).
+		this.tabBar.setAttribute("selected-tab-index", "0");
+		this.showTab("dedications");
 	}
 
 	showTab(id) {
@@ -186,6 +221,11 @@ class AiAdvisorPanel extends Panel {
 		const vic = this.gatherVictories();
 		const byAdvisor = {};
 		for (const v of vic.victories) if (v.advisor) byAdvisor[v.advisor] = v;
+		// Dedications the leader chose this Age, grouped by the advisor who owns them.
+		const dedByAdvisor = {};
+		for (const t of safe(() => getTracking().items, []) || []) {
+			(dedByAdvisor[t.advisorKey] ||= []).push(t);
+		}
 		ADVISORS.forEach((adv, i) => {
 			let text = ADVICE[adv.key](state);
 			const v = byAdvisor[adv.key];
@@ -193,6 +233,9 @@ class AiAdvisorPanel extends Panel {
 				const verdict = this.victoryVerdict(v);
 				const rival = v.rivalsMax > 0 ? ` vs top rival ${v.rivalsMax}` : "";
 				text += `  Victory — ${v.name}: you have ${v.myPoints} ${v.stat}${rival} (${verdict.label}).`;
+			}
+			for (const t of (dedByAdvisor[adv.key] || [])) {
+				text += `  Dedication — ${t.name}: ${t.verdict.label}${t.total && !t.triggered ? ` (${t.cur}/${t.total})` : ""}.`;
 			}
 			const card = document.createElement("div");
 			card.classList.add("ai-advisor__card");
@@ -523,6 +566,238 @@ class AiAdvisorPanel extends Panel {
 			}
 			c.appendChild(card);
 		}
+	}
+
+	// --- Dedications: pick 3 Triumphs per Age, then track + guide ------------
+
+	/**
+	 * Render the Dedications tab. If the leader has not yet chosen this Age, show
+	 * the advisor "pick 3 Triumphs" prompt with a selectable list. Once chosen,
+	 * show the live tracking view (progress, on-track verdict, guidance).
+	 */
+	buildDedications() {
+		if (hasChosenThisAge()) this.renderDedicationTracking();
+		else this.renderDedicationPicker();
+	}
+
+	clearDedications() {
+		this.dedicationsContainer.innerHTML = "";
+		this.dedicationsActions.innerHTML = "";
+	}
+
+	makeButton(label, opts = {}) {
+		const b = document.createElement("div");
+		b.classList.add("ai-advisor__btn", "font-body-base");
+		if (opts.secondary) b.classList.add("secondary");
+		if (opts.disabled) b.classList.add("disabled");
+		b.textContent = label;
+		if (!opts.disabled && opts.onClick) b.addEventListener("action-activate", opts.onClick), b.addEventListener("click", opts.onClick);
+		return b;
+	}
+
+	// --- selection view -----------------------------------------------------
+
+	renderDedicationPicker() {
+		this.clearDedications();
+		const c = this.dedicationsContainer;
+		if (this._pendingSelection == null) this._pendingSelection = getChosen();
+
+		const ageName = safe(() => Locale.compose(GameInfo.Ages.lookup(Game.age).Name), null);
+		const prompt = document.createElement("div");
+		prompt.classList.add("ai-advisor__ded-prompt", "font-title-sm");
+		prompt.textContent = `The dawn of ${ageName || "a new Age"} — choose 3 Triumphs to dedicate this Age to.`;
+		c.appendChild(prompt);
+
+		const triumphs = getAvailableTriumphs();
+		if (!triumphs.length) {
+			const empty = document.createElement("div");
+			empty.classList.add("font-body-sm", "text-accent-3", "italic", "text-center", "my-2");
+			empty.textContent = "No Triumphs are available to dedicate to yet. Check back once the Age is underway.";
+			c.appendChild(empty);
+			return;
+		}
+
+		let lastAttr = null;
+		for (const t of triumphs) {
+			if (t.attr !== lastAttr) { c.appendChild(this.sectionHeader(t.attr)); lastAttr = t.attr; }
+			c.appendChild(this.dedicationCard(t));
+		}
+		this.renderPickerActions();
+	}
+
+	dedicationCard(t) {
+		const card = document.createElement("div");
+		card.classList.add("ai-advisor__ded");
+		card.style.borderLeftColor = t.color;
+		const selected = this._pendingSelection.includes(t.type);
+		if (selected) card.classList.add("selected");
+		// Completed or lost-race Triumphs can't be a meaningful target.
+		const pickable = !t.triggered && !t.raceLost;
+		if (!pickable) card.classList.add("disabled");
+
+		const head = document.createElement("div");
+		head.classList.add("ai-advisor__ded-head");
+		const title = document.createElement("div");
+		title.classList.add("ai-advisor__ded-title", "font-body-base");
+		const ic = document.createElement("span");
+		ic.classList.add("ai-advisor__ded-title-icon");
+		ic.textContent = t.icon;
+		const tname = document.createElement("span");
+		tname.textContent = (t.firstOnly ? "🏁 " : "") + t.name;
+		title.appendChild(ic); title.appendChild(tname);
+		if (selected) {
+			const ck = document.createElement("span");
+			ck.classList.add("ai-advisor__ded-check");
+			ck.style.color = "#e0c060";
+			ck.textContent = "✓";
+			title.appendChild(ck);
+		}
+		const pill = document.createElement("div");
+		pill.classList.add("ai-advisor__ded-pill");
+		pill.style.color = t.color;
+		pill.textContent = t.triggered ? "✓ Complete" : t.raceLost ? "Race lost"
+			: (t.total ? `${t.cur}/${t.total}` : t.attr);
+		head.appendChild(title); head.appendChild(pill);
+		card.appendChild(head);
+
+		if (t.requirement) {
+			const req = document.createElement("div");
+			req.classList.add("ai-advisor__ded-req");
+			req.innerHTML = t.requirement; // stylized rich text (the challenge)
+			card.appendChild(req);
+		}
+
+		// The Dedication you unlock for the next Age by completing this Triumph.
+		if (t.reward) {
+			const rew = document.createElement("div");
+			rew.classList.add("ai-advisor__ded-reward");
+			rew.innerHTML = `<span class="ai-advisor__ded-reward-label">Reward:</span>${t.reward}`;
+			card.appendChild(rew);
+		}
+
+		if (pickable) {
+			const toggle = () => this.togglePending(t.type);
+			card.addEventListener("action-activate", toggle);
+			card.addEventListener("click", toggle);
+		}
+		return card;
+	}
+
+	togglePending(type) {
+		const i = this._pendingSelection.indexOf(type);
+		if (i >= 0) this._pendingSelection.splice(i, 1);
+		else if (this._pendingSelection.length < 3) this._pendingSelection.push(type);
+		// re-render to reflect selection state + button enablement
+		this.renderDedicationPicker();
+	}
+
+	renderPickerActions() {
+		const bar = this.dedicationsActions;
+		bar.innerHTML = "";
+		const n = this._pendingSelection.length;
+		const count = document.createElement("div");
+		count.classList.add("ai-advisor__ded-count", "font-body-sm");
+		count.style.marginRight = "0.6rem";
+		count.style.marginBottom = "0";
+		count.textContent = `${n} / 3 selected`;
+		bar.appendChild(count);
+		bar.appendChild(this.makeButton("Confirm Dedications", {
+			disabled: n !== 3,
+			onClick: () => {
+				setChosen(this._pendingSelection);
+				this._pendingSelection = null;
+				this.renderDedicationTracking();
+			},
+		}));
+	}
+
+	// --- tracking view ------------------------------------------------------
+
+	renderDedicationTracking() {
+		this.clearDedications();
+		const c = this.dedicationsContainer;
+		const { items } = getTracking();
+
+		const ageName = safe(() => Locale.compose(GameInfo.Ages.lookup(Game.age).Name), null);
+		const head = document.createElement("div");
+		head.classList.add("ai-advisor__ded-prompt", "font-title-sm");
+		head.textContent = `Your ${ageName || "Age"} Dedications — progress & guidance`;
+		c.appendChild(head);
+
+		if (!items.length) {
+			const empty = document.createElement("div");
+			empty.classList.add("font-body-sm", "text-accent-3", "italic", "text-center", "my-2");
+			empty.textContent = "Your chosen Triumphs are no longer available. Pick a new set below.";
+			c.appendChild(empty);
+		}
+
+		for (const t of items) c.appendChild(this.trackingCard(t));
+
+		const bar = this.dedicationsActions;
+		bar.innerHTML = "";
+		bar.appendChild(this.makeButton("Change Selection", {
+			secondary: true,
+			onClick: () => {
+				clearChosen();
+				this._pendingSelection = null;
+				this.renderDedicationPicker();
+			},
+		}));
+	}
+
+	trackingCard(t) {
+		const card = document.createElement("div");
+		card.classList.add("ai-advisor__ded");
+		card.style.cursor = "default";
+		card.style.borderLeftColor = t.verdict.color;
+
+		const head = document.createElement("div");
+		head.classList.add("ai-advisor__ded-head");
+		const title = document.createElement("div");
+		title.classList.add("ai-advisor__ded-title", "font-body-base");
+		const ic = document.createElement("span");
+		ic.classList.add("ai-advisor__ded-title-icon");
+		ic.textContent = t.icon;
+		const tname = document.createElement("span");
+		tname.textContent = t.name;
+		title.appendChild(ic); title.appendChild(tname);
+		const pill = document.createElement("div");
+		pill.classList.add("ai-advisor__ded-pill");
+		pill.style.color = t.verdict.color;
+		pill.textContent = t.verdict.label + (t.total && !t.triggered ? ` · ${t.cur}/${t.total}` : "");
+		head.appendChild(title); head.appendChild(pill);
+		card.appendChild(head);
+
+		// progress bar
+		if (t.total > 0) {
+			const barWrap = document.createElement("div");
+			barWrap.classList.add("ai-advisor__triumph-barwrap");
+			barWrap.style.marginTop = "0.35rem";
+			const bar = document.createElement("div");
+			bar.classList.add("ai-advisor__triumph-bar");
+			bar.style.width = `${Math.min(100, Math.round((t.cur / t.total) * 100))}%`;
+			bar.style.backgroundColor = t.verdict.color;
+			barWrap.appendChild(bar);
+			card.appendChild(barWrap);
+		}
+
+		const guide = document.createElement("div");
+		guide.classList.add("ai-advisor__ded-guide");
+		guide.innerHTML = `<b style="color:${t.color}">${t.advisor}:</b> ${t.guidance}`;
+		card.appendChild(guide);
+
+		// concrete action list for in-progress goals
+		if (!t.triggered && !t.raceLost && t.actions && t.actions.length) {
+			const list = document.createElement("div");
+			list.classList.add("ai-advisor__ded-actions-list", "font-body-sm");
+			for (const a of t.actions) {
+				const row = document.createElement("div");
+				row.textContent = "• " + a;
+				list.appendChild(row);
+			}
+			card.appendChild(list);
+		}
+		return card;
 	}
 }
 

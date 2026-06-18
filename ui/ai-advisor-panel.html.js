@@ -19,6 +19,19 @@ const content = `
 		tab-style="flat"
 	></fxs-tab-bar>
 
+	<!-- ===================== DEDICATIONS TAB ===================== -->
+	<div class="ai-advisor__tab ai-advisor__tab-dedications flex flex-col w-128">
+		<div
+			class="ai-advisor__intro font-body-sm text-accent-2 text-center max-w-128 mb-2"
+			data-l10n-id="LOC_AI_ADVISOR_DEDICATIONS_INTRO"
+		></div>
+		<fxs-scrollable class="ai-advisor__scroll" handle-gamepad-pan="true">
+			<div class="ai-advisor__dedications flex flex-col w-full pr-2"></div>
+		</fxs-scrollable>
+		<!-- Action bar (Confirm / Change selection); filled in by the panel. -->
+		<div class="ai-advisor__dedications-actions flex flex-row items-center justify-center w-full mt-2"></div>
+	</div>
+
 	<!-- ===================== COUNCIL TAB ===================== -->
 	<div class="ai-advisor__tab ai-advisor__tab-council flex flex-col w-128">
 		<div
