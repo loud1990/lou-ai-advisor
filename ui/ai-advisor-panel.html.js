@@ -51,6 +51,17 @@ const content = `
 		</fxs-scrollable>
 	</div>
 
+	<!-- ===================== CITIES TAB ===================== -->
+	<div class="ai-advisor__tab ai-advisor__tab-cities flex flex-col w-128" style="display:none">
+		<div
+			class="ai-advisor__intro font-body-sm text-accent-2 text-center max-w-128 mb-2"
+			data-l10n-id="LOC_AI_ADVISOR_CITIES_INTRO"
+		></div>
+		<fxs-scrollable class="ai-advisor__scroll" handle-gamepad-pan="true">
+			<div class="ai-advisor__cities flex flex-col w-full pr-2"></div>
+		</fxs-scrollable>
+	</div>
+
 	<!-- ===================== TRIUMPHS TAB ===================== -->
 	<div class="ai-advisor__tab ai-advisor__tab-triumphs flex flex-col w-128" style="display:none">
 		<div

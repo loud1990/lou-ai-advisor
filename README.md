@@ -31,6 +31,21 @@ a future AI-driven advisor feature.
     `player.Legacies`, and `Game.VictoryManager`.
   - **Council** — each advisor's recommendation, annotated with your live
     standing in the Victory it drives (Military/Cultural/Economic/Scientific).
+  - **Cities** — every City gets its own advisor on the council. A city advisor
+    is created when a settlement first becomes a **City** (founded as your capital,
+    a **Town upgraded to a City**, or a **City taken by conquest** — a settlement
+    captured *as a Town* gets none until it upgrades). The city advisors coordinate
+    with each other and with the five domain advisors: the empire's chosen
+    Dedications + Victory standing become a per-attribute priority, which is spread
+    across the cities by each city's strengths (`assignFoci`) so they collectively
+    cover the goals. Each city advisor then scores that city's *actually buildable*
+    items (read with the same engine queries the base production chooser uses) and
+    recommends what to build next, with an advisor-voiced reason. The tab lists
+    every city advisor, its focus, and its top pick; selecting a city in-game opens
+    a side **overlay** beside the production chooser with the full recommendation
+    and a one-click **Build this** button (`applyBuild`, mirroring the base game's
+    `Construct`). Read live from `player.Cities`, `city.Yields`, `Players.Advisory`
+    and `player.Victories`/`player.Legacies`.
   - **Empire Overview** — turn, age, leader, civilization, settlement count
   - **Yields Per Turn** — gold, science, culture, happiness, production, food
 - All data is read defensively from the local player; missing values degrade
@@ -44,6 +59,9 @@ ui/ai-advisor-button.js         # dock button component + registration
 ui/ai-advisor-panel.js          # panel component (Panel subclass)
 ui/ai-advisor-panel.html.js     # panel markup (fxs-frame)
 ui/ai-advisor-dedications.js    # per-Age "pick 3 Triumphs" store + tracking/guidance (shared)
+ui/ai-advisor-city-council.js   # per-city advisors: registry/lifecycle, empire priorities, focus assignment, build recommendation (shared)
+ui/ai-advisor-city-panel.js     # per-city overlay shown on the city screen (Build this)
+ui/ai-advisor-city-panel.html.js# city overlay markup (fxs-frame)
 ui/ai-advisor-state.js          # emits per-turn empire + dedication state to UI.log
 ui/ai-advisor-autoplay.js       # in-engine autoplay (growth/research/production/units/end-turn)
 text/en_us/en_US_Text.xml       # localized strings
@@ -51,7 +69,30 @@ tools/launch.sh                 # launch the NATIVE Vulkan renderer via Steam (s
 tools/resume.sh                 # drive menus into the loaded save (XTEST, verify+retry)
 harness/play.py                 # set the autoplay stop-turn and observe the run
 tools/xui.py                    # X11 screenshot/input helper used for testing
+kb/benchmarks.md                # researched post-1.4.0 progress benchmarks (sourced)
+advisors/benchmarks.py          # structured benchmarks + assess(): pace + rival check
 ```
+
+## Progress benchmarks (post Test of Time / 1.4.0)
+
+`kb/benchmarks.md` is a researched, sourced reference for "where should I be by
+now?" at points across each Age, current as of **Update 1.4.0 "Test of Time"**
+(19 May 2026) — the rebalance that reworked Victories/Triumphs and cut yield
+bloat, so all pre-May-2026 guides overstate yields and are not used.
+
+`advisors/benchmarks.py` turns it into structured data + an `assess(state, rivals)`
+helper the council calls. It runs two checks by design:
+
+- **Static pacing** (Antiquity, before you meet the other continent): completion
+  turn, cities/settlements, wonders, tourism, and "future civics" overflow vs
+  post-1.4.0 competitive snapshots (CivFanatics 7OTM June 2026 completion games).
+- **Relative-to-rival** (Exploration onward): the three Dominance victories are
+  won by reaching a **shrinking multiple of the 2nd-place player's score**
+  (6×→4×→3×→2×→1.5×→1.25×) and holding it 5 turns; Science needs 100 Innovation +
+  a rocket. Once rival scores are visible, this is weighted over the static marks.
+
+`assess()` output is injected into every advisor's prompt (`advisors/advisor.py`),
+and the prose is indexed into the KB for retrieval via `python3 kb/ingest.py curate`.
 
 ## Status
 

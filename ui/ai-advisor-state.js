@@ -9,6 +9,7 @@
  * advisor council. console.error is used because that is what reaches UI.log.
  */
 import { getChosen, hasChosenThisAge, getTracking } from './ai-advisor-dedications.js';
+import { getCouncilSnapshot } from './ai-advisor-city-council.js';
 
 const TAG = "AI_ADVISOR_STATE:";
 
@@ -200,6 +201,10 @@ function gatherDedicationLog() {
 	};
 }
 
+// Per-city council: each City's advisor, focus, and recommended build, emitted on
+// its own line so the external council can reason about per-city build orders.
+const CITY_COUNCIL_TAG = "AI_ADVISOR_CITY_COUNCIL:";
+
 function emit() {
 	try {
 		const player = safe(() => Players.get(GameContext.localPlayerID), null);
@@ -207,6 +212,7 @@ function emit() {
 		console.error(`${TAG} ${JSON.stringify(state)}`);
 		console.error(`${VICTORY_TAG} ${JSON.stringify(gatherVictoryLog(player))}`);
 		console.error(`${DEDICATION_TAG} ${JSON.stringify(gatherDedicationLog())}`);
+		console.error(`${CITY_COUNCIL_TAG} ${JSON.stringify(safe(() => getCouncilSnapshot(), { cities: [] }))}`);
 	} catch (e) {
 		console.error("AI_ADVISOR_STATE_ERROR:", e);
 	}

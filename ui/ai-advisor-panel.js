@@ -7,6 +7,7 @@ import {
 	getChosen, setChosen, clearChosen, hasChosenThisAge,
 	getAvailableTriumphs, getTracking,
 } from './ai-advisor-dedications.js';
+import { syncCouncil, recommendForCity } from './ai-advisor-city-council.js';
 
 /**
  * AI Advisor panel.
@@ -75,6 +76,7 @@ const STYLE = `
 const TABS = [
 	{ id: "dedications", label: "LOC_AI_ADVISOR_TAB_DEDICATIONS" },
 	{ id: "council", label: "LOC_AI_ADVISOR_TAB_COUNCIL" },
+	{ id: "cities", label: "LOC_AI_ADVISOR_TAB_CITIES" },
 	{ id: "triumphs", label: "LOC_AI_ADVISOR_TAB_TRIUMPHS" },
 	{ id: "empire", label: "LOC_AI_ADVISOR_TAB_EMPIRE" },
 ];
@@ -117,6 +119,7 @@ class AiAdvisorPanel extends Panel {
 	thinkingText = null;
 	councilEl = null;
 	triumphsContainer = null;
+	citiesContainer = null;
 	dedicationsContainer = null;
 	dedicationsActions = null;
 	empireContainer = null;
@@ -133,6 +136,7 @@ class AiAdvisorPanel extends Panel {
 		this.tabPanels = {
 			dedications: MustGetElement(".ai-advisor__tab-dedications", this.Root),
 			council: MustGetElement(".ai-advisor__tab-council", this.Root),
+			cities: MustGetElement(".ai-advisor__tab-cities", this.Root),
 			triumphs: MustGetElement(".ai-advisor__tab-triumphs", this.Root),
 			empire: MustGetElement(".ai-advisor__tab-empire", this.Root),
 		};
@@ -140,6 +144,7 @@ class AiAdvisorPanel extends Panel {
 		this.thinkingText = MustGetElement(".ai-advisor__thinking-text", this.Root);
 		this.councilEl = MustGetElement(".ai-advisor__council", this.Root);
 		this.triumphsContainer = MustGetElement(".ai-advisor__triumphs", this.Root);
+		this.citiesContainer = MustGetElement(".ai-advisor__cities", this.Root);
 		this.dedicationsContainer = MustGetElement(".ai-advisor__dedications", this.Root);
 		this.dedicationsActions = MustGetElement(".ai-advisor__dedications-actions", this.Root);
 		this.empireContainer = MustGetElement(".ai-advisor__empire", this.Root);
@@ -164,6 +169,7 @@ class AiAdvisorPanel extends Panel {
 		this.buildEmpireInfo();
 		this.buildYieldInfo();
 		this.buildTriumphs();
+		this.buildCities();
 		this.buildDedications();
 		this.startDeliberation();
 	}
@@ -566,6 +572,78 @@ class AiAdvisorPanel extends Panel {
 			}
 			c.appendChild(card);
 		}
+	}
+
+	// --- Cities: every city advisor + its recommended build -----------------
+
+	/**
+	 * List each City's advisor with its assigned focus, current production, and the
+	 * council's top build recommendation. Reads the shared city-council module so it
+	 * stays consistent with the on-screen city overlay.
+	 */
+	buildCities() {
+		const c = this.citiesContainer;
+		c.innerHTML = "";
+		const advisors = safe(() => syncCouncil(), []) || [];
+		if (!advisors.length) {
+			const empty = document.createElement("div");
+			empty.classList.add("font-body-sm", "text-accent-3", "italic", "text-center", "my-2");
+			empty.textContent = Locale.compose("LOC_AI_ADVISOR_CITIES_NONE");
+			c.appendChild(empty);
+			return;
+		}
+		for (const a of advisors) {
+			const data = safe(() => recommendForCity(a.cityId), null);
+			if (!data) continue;
+			c.appendChild(this.cityCard(data));
+		}
+	}
+
+	cityCard(data) {
+		const ORIGIN = { founded: "founded", upgraded: "upgraded", conquered: "conquered" };
+		const card = document.createElement("div");
+		card.classList.add("ai-advisor__ded");
+		card.style.cursor = "default";
+		card.style.borderLeftColor = data.focus.color;
+
+		const head = document.createElement("div");
+		head.classList.add("ai-advisor__ded-head");
+		const title = document.createElement("div");
+		title.classList.add("ai-advisor__ded-title", "font-body-base");
+		const ic = document.createElement("span");
+		ic.classList.add("ai-advisor__ded-title-icon");
+		ic.textContent = data.focus.icon;
+		const tname = document.createElement("span");
+		tname.textContent = `${data.cityName} — ${data.advisorName}`;
+		title.appendChild(ic); title.appendChild(tname);
+		const pill = document.createElement("div");
+		pill.classList.add("ai-advisor__ded-pill");
+		pill.style.color = data.focus.color;
+		pill.textContent = data.focus.label || "balanced";
+		head.appendChild(title); head.appendChild(pill);
+		card.appendChild(head);
+
+		const sub = document.createElement("div");
+		sub.classList.add("ai-advisor__ded-req");
+		sub.textContent = `${ORIGIN[data.origin] || ""}${data.producing ? ` · building ${data.producing}` : ""}`;
+		card.appendChild(sub);
+
+		const guide = document.createElement("div");
+		guide.classList.add("ai-advisor__ded-guide");
+		if (data.top) {
+			guide.innerHTML = `<b style="color:${data.focus.color}">Recommends:</b> ${data.top.item.name}${data.top.item.recommended ? " ★" : ""}`;
+			card.appendChild(guide);
+			const reason = document.createElement("div");
+			reason.classList.add("ai-advisor__ded-actions-list", "font-body-sm");
+			const row = document.createElement("div");
+			row.textContent = data.top.reason;
+			reason.appendChild(row);
+			card.appendChild(reason);
+		} else {
+			guide.textContent = "Nothing new to build right now.";
+			card.appendChild(guide);
+		}
+		return card;
 	}
 
 	// --- Dedications: pick 3 Triumphs per Age, then track + guide ------------

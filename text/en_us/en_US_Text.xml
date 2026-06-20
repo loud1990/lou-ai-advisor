@@ -55,5 +55,29 @@
 		<Row Tag="LOC_AI_ADVISOR_FOOTER">
 			<Text>Advice updates each turn based on the state of your empire.</Text>
 		</Row>
+		<Row Tag="LOC_AI_ADVISOR_TAB_CITIES">
+			<Text>Cities</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_CITIES_INTRO">
+			<Text>Every City has its own advisor on the council. Each is given a focus that fits the city and your chosen Triumphs, then recommends what that city should build next toward your path to victory. Open a city to act on its advice.</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_CITIES_NONE">
+			<Text>No Cities yet. Your capital and any Town you upgrade or City you capture will each gain an advisor here.</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_CITY_PANEL_TITLE">
+			<Text>City Advisor</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_CITY_FOOTER">
+			<Text>Recommendation reflects your goals and this city's strengths.</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_CITY_BUILD">
+			<Text>Build this</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_CITY_NONE">
+			<Text>Select a City to see its advisor's recommendation.</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_CITY_NOBUILDS">
+			<Text>This city has nothing new to start right now.</Text>
+		</Row>
 	</EnglishText>
 </Database>
