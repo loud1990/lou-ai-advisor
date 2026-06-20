@@ -154,6 +154,45 @@ def build():
     db.close()
 
 
+def ingest_curated():
+    """Index curated local markdown docs (e.g. benchmarks.md) into the existing
+    kb without rebuilding from game files. Each top-level '## ' section becomes
+    one document in the 'Benchmarks' section. Idempotent: clears prior curated
+    docs first so it can be re-run after editing the markdown."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    md_files = sorted(glob.glob(os.path.join(here, "*.md")))
+    if not md_files:
+        print("No curated .md files found.", file=sys.stderr)
+        return
+    if not os.path.exists(KB_PATH):
+        print("kb.sqlite missing; run `build` first.", file=sys.stderr)
+        sys.exit(1)
+    db = sqlite3.connect(KB_PATH)
+    db.execute("DELETE FROM docs WHERE section = 'Benchmarks'")
+    n = 0
+    for path in md_files:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+        src = os.path.basename(path)
+        # split on level-2 headers, keep the header as the doc title
+        parts = re.split(r"^##\s+(.+)$", text, flags=re.MULTILINE)
+        # parts = [preamble, title1, body1, title2, body2, ...]
+        for i in range(1, len(parts), 2):
+            title = parts[i].strip()
+            body = parts[i + 1].strip() if i + 1 < len(parts) else ""
+            if not body:
+                continue
+            db.execute(
+                "INSERT INTO docs(section, title, body, pageid, source) "
+                "VALUES (?,?,?,?,?)",
+                ("Benchmarks", title, body, f"{src}#{i // 2}", src),
+            )
+            n += 1
+    db.commit()
+    db.close()
+    print(f"Indexed {n} curated benchmark docs from {len(md_files)} file(s).")
+
+
 def query(text, k=5, section=None):
     db = sqlite3.connect(KB_PATH)
     db.row_factory = sqlite3.Row
@@ -186,10 +225,13 @@ def main():
     q.add_argument("-k", type=int, default=5)
     q.add_argument("--section", default=None)
     sub.add_parser("stats")
+    sub.add_parser("curate")
     args = ap.parse_args()
 
     if args.cmd == "build":
         build()
+    elif args.cmd == "curate":
+        ingest_curated()
     elif args.cmd == "query":
         for r in query(args.text, args.k, args.section):
             print(f"[{r['section']}] {r['title']}  (score {r['score']:.2f})")

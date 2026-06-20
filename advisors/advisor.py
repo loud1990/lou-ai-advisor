@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 from personas import PERSONAS, Persona  # noqa: E402
+import benchmarks  # noqa: E402  (progress benchmarks vs pace + rivals)
 
 # import the KB query function from ../kb/ingest.py
 _KB_INGEST = os.path.join(_HERE, "..", "kb", "ingest.py")
@@ -77,16 +78,22 @@ def build_prompts(persona: Persona, state: Dict[str, Any], retrieved: List[Dict]
     facts = "\n".join(
         f"- [{r['section']}] {r['title']}: {_snippet(r['body'])}" for r in retrieved
     ) or "- (no specific KB facts retrieved)"
+    assessment = benchmarks.assess(state, state.get("rivals"))
     user = textwrap.dedent(f"""\
         Current game state (turn {state.get('turn', '?')}):
         {format_state(state)}
+
+        Where you stand vs benchmarks ({assessment['mode']} check, post-1.4.0):
+        {assessment['summary']}
 
         Relevant Civilization VII knowledge:
         {facts}
 
         As the {persona.name} ({persona.domain}), give the leader your single most
         important recommendation for THIS turn. Be specific and concise (1-3 sentences).
-        Ground your advice in the game state and the knowledge above.""")
+        Ground your advice in the game state, the benchmark standing, and the
+        knowledge above. If the benchmark check is "relative" (rival scores known),
+        weight catching/holding the victory multiple over the static targets.""")
     return persona.system, user
 
 
