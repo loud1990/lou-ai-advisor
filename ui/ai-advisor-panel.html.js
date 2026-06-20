@@ -73,27 +73,6 @@ const content = `
 		</fxs-scrollable>
 	</div>
 
-	<!-- ===================== EMPIRE TAB ===================== -->
-	<div class="ai-advisor__tab ai-advisor__tab-empire flex flex-col w-128" style="display:none">
-		<fxs-scrollable class="ai-advisor__scroll" handle-gamepad-pan="true">
-			<div class="ai-advisor__empire-wrap flex flex-col w-full pr-2">
-				<fxs-header
-					title="LOC_AI_ADVISOR_SECTION_EMPIRE"
-					class="font-title-base self-center"
-					filigree-style="none"
-				></fxs-header>
-				<div class="ai-advisor__empire flex flex-col w-full mb-3"></div>
-
-				<fxs-header
-					title="LOC_AI_ADVISOR_SECTION_YIELDS"
-					class="font-title-base self-center mt-2"
-					filigree-style="none"
-				></fxs-header>
-				<div class="ai-advisor__yields flex flex-col w-full"></div>
-			</div>
-		</fxs-scrollable>
-	</div>
-
 	<div
 		class="ai-advisor__footer font-body-sm text-accent-3 italic text-center mt-3"
 		data-l10n-id="LOC_AI_ADVISOR_FOOTER"

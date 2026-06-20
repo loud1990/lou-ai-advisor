@@ -13,8 +13,8 @@ import { syncCouncil, recommendForCity } from './ai-advisor-city-council.js';
  * AI Advisor panel.
  *
  * Opened from the dock button. Shows the advisor council's recommendations for
- * the current turn — computed live from the empire state — plus an empire/yields
- * summary. When opened it first shows a short "deliberating" animation, then
+ * the current turn — computed live from the empire state. When opened it first
+ * shows a short "deliberating" animation, then
  * reveals each advisor's advice (mirrors the external KB/Claude council's logic).
  */
 
@@ -78,7 +78,6 @@ const TABS = [
 	{ id: "council", label: "LOC_AI_ADVISOR_TAB_COUNCIL" },
 	{ id: "cities", label: "LOC_AI_ADVISOR_TAB_CITIES" },
 	{ id: "triumphs", label: "LOC_AI_ADVISOR_TAB_TRIUMPHS" },
-	{ id: "empire", label: "LOC_AI_ADVISOR_TAB_EMPIRE" },
 ];
 
 // Test of Time (1.4.0) victory conditions. The four attribute Victories culminate
@@ -122,8 +121,6 @@ class AiAdvisorPanel extends Panel {
 	citiesContainer = null;
 	dedicationsContainer = null;
 	dedicationsActions = null;
-	empireContainer = null;
-	yieldsContainer = null;
 	_dotTimer = null;
 	_revealTimer = null;
 	_pendingSelection = null; // working set of LegacyTypes during picking
@@ -138,7 +135,6 @@ class AiAdvisorPanel extends Panel {
 			council: MustGetElement(".ai-advisor__tab-council", this.Root),
 			cities: MustGetElement(".ai-advisor__tab-cities", this.Root),
 			triumphs: MustGetElement(".ai-advisor__tab-triumphs", this.Root),
-			empire: MustGetElement(".ai-advisor__tab-empire", this.Root),
 		};
 		this.thinkingEl = MustGetElement(".ai-advisor__thinking", this.Root);
 		this.thinkingText = MustGetElement(".ai-advisor__thinking-text", this.Root);
@@ -147,8 +143,6 @@ class AiAdvisorPanel extends Panel {
 		this.citiesContainer = MustGetElement(".ai-advisor__cities", this.Root);
 		this.dedicationsContainer = MustGetElement(".ai-advisor__dedications", this.Root);
 		this.dedicationsActions = MustGetElement(".ai-advisor__dedications-actions", this.Root);
-		this.empireContainer = MustGetElement(".ai-advisor__empire", this.Root);
-		this.yieldsContainer = MustGetElement(".ai-advisor__yields", this.Root);
 		this.enableOpenSound = true;
 		this.enableCloseSound = true;
 	}
@@ -166,8 +160,6 @@ class AiAdvisorPanel extends Panel {
 		super.onAttach();
 		this.closeButton.addEventListener("action-activate", () => this.close());
 		this.setupTabs();
-		this.buildEmpireInfo();
-		this.buildYieldInfo();
 		this.buildTriumphs();
 		this.buildCities();
 		this.buildDedications();
@@ -331,48 +323,7 @@ class AiAdvisorPanel extends Panel {
 		}, null);
 	}
 
-	// --- empire / yields summary (unchanged) --------------------------------
-
-	addRow(container, label, value) {
-		const row = document.createElement("div");
-		row.classList.add("flex", "justify-between", "items-center", "py-1");
-		const l = document.createElement("div");
-		l.classList.add("font-body-base", "text-accent-2");
-		l.textContent = label;
-		const v = document.createElement("div");
-		v.classList.add("font-body-base", "text-accent-1");
-		v.textContent = value;
-		row.appendChild(l); row.appendChild(v);
-		container.appendChild(row);
-	}
-
 	getLocalPlayer() { return safe(() => Players.get(GameContext.localPlayerID), null); }
-
-	buildEmpireInfo() {
-		const player = this.getLocalPlayer();
-		this.addRow(this.empireContainer, "Turn", safe(() => Game.turn.toString(), "?"));
-		const ageName = safe(() => GameInfo.Ages.lookup(Game.age)?.Name, null);
-		if (ageName) this.addRow(this.empireContainer, "Age", Locale.compose(ageName));
-		if (!player) { this.addRow(this.empireContainer, "Player", "Unavailable"); return; }
-		const leader = safe(() => player.leaderName && Locale.compose(player.leaderName), null);
-		if (leader) this.addRow(this.empireContainer, "Leader", leader);
-		const civ = safe(() => player.civilizationFullName && Locale.compose(player.civilizationFullName), null);
-		if (civ) this.addRow(this.empireContainer, "Civilization", civ);
-		this.addRow(this.empireContainer, "Settlements", safe(() => (player.Cities?.getCities() ?? []).length.toString(), "0"));
-	}
-
-	buildYieldInfo() {
-		const stats = this.getLocalPlayer()?.Stats;
-		if (!stats) { this.addRow(this.yieldsContainer, "Yields", "Unavailable"); return; }
-		const yields = [["Gold", "YIELD_GOLD"], ["Science", "YIELD_SCIENCE"], ["Culture", "YIELD_CULTURE"],
-			["Happiness", "YIELD_HAPPINESS"], ["Production", "YIELD_PRODUCTION"], ["Food", "YIELD_FOOD"]];
-		for (const [label, yt] of yields) {
-			const net = safe(() => stats.getNetYield(YieldTypes[yt]), null);
-			if (net == null) continue;
-			const r = Math.round(net * 10) / 10;
-			this.addRow(this.yieldsContainer, label, `${r > 0 ? "+" : ""}${r}`);
-		}
-	}
 
 	// --- Test of Time victory conditions: target, how-to, standing, on-track ---
 
