@@ -70,5 +70,23 @@
 		<Row Tag="LOC_AI_ADVISOR_CITY_NOBUILDS">
 			<Text>This city has nothing new to start right now.</Text>
 		</Row>
+		<Row Tag="LOC_AI_ADVISOR_TAB_CHAT">
+			<Text>Chat</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_CHAT_INTRO">
+			<Text>Talk with your council. Tell them which Victory you are aiming for and they will map a path — tech, civics, build order, and posture toward war — then steer it as the game unfolds. What you agree here shapes the advice on every other tab.</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_CHAT_PLACEHOLDER">
+			<Text>Ask the council...</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_CHAT_OFFLINE">
+			<Text>The council brain is offline. Start it with tools/serve-advisors.sh (it connects to your local LLM endpoint) to converse. Your existing strategy still guides the other tabs.</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_CHAT_THINKING">
+			<Text>The council is considering your words</Text>
+		</Row>
+		<Row Tag="LOC_AI_ADVISOR_CHAT_SEND">
+			<Text>Send</Text>
+		</Row>
 	</EnglishText>
 </Database>

@@ -31,6 +31,17 @@ a future AI-driven advisor feature.
     `player.Legacies`, and `Game.VictoryManager`.
   - **Council** — each advisor's recommendation, annotated with your live
     standing in the Victory it drives (Military/Cultural/Economic/Scientific).
+    When a strategy has been agreed in **Chat**, a banner at the top shows the
+    chosen Victory + next tech/civic/build priorities, and the advisor who owns
+    that Victory is listed first.
+  - **Chat** — converse with the council. At the start of a new game they propose
+    a Victory and a path to it (tech, civics, rough build order, war posture); you
+    confirm or redirect, and steer it as the game unfolds. The agreed plan is a
+    per-game **strategy** that the other tabs read — so talking to the council
+    actually changes the advice on Council and Cities. Requires the local
+    **strategist server** (below); offline, the cached strategy still drives the
+    advice but you can't hold a new conversation. Powered by an LLM + the same
+    knowledge base the offline council uses.
   - **Cities** — every City gets its own advisor on the council. A city advisor
     is created when a settlement first becomes a **City** (founded as your capital,
     a **Town upgraded to a City**, or a **City taken by conquest** — a settlement
@@ -63,15 +74,47 @@ ui/ai-advisor-city-council.js   # per-city advisors: registry/lifecycle, empire 
 ui/ai-advisor-city-panel.js     # per-city overlay shown on the city screen (Build this)
 ui/ai-advisor-city-panel.html.js# city overlay markup (fxs-frame)
 ui/ai-advisor-state.js          # emits per-turn empire + dedication state to UI.log
+ui/ai-advisor-strategy.js       # per-game strategy cache (localStorage) + brain bridge (fetch)
 ui/ai-advisor-autoplay.js       # in-engine autoplay (growth/research/production/units/end-turn)
 text/en_us/en_US_Text.xml       # localized strings
 tools/launch.sh                 # launch the NATIVE Vulkan renderer via Steam (stable)
+tools/serve-advisors.sh         # start the strategist server the Chat tab talks to
 tools/resume.sh                 # drive menus into the loaded save (XTEST, verify+retry)
 harness/play.py                 # set the autoplay stop-turn and observe the run
 tools/xui.py                    # X11 screenshot/input helper used for testing
 kb/benchmarks.md                # researched post-1.4.0 progress benchmarks (sourced)
 advisors/benchmarks.py          # structured benchmarks + assess(): pace + rival check
+advisors/strategist.py          # conversational strategist: chat -> {reply, strategy}; writes STRATEGY.md
+advisors/server.py              # tiny local HTTP server (stdlib) exposing the strategist to the mod
 ```
+
+## Council chat (strategist server)
+
+The **Chat** tab talks to a small local Python server that does the LLM + knowledge
+-base work the game's sandbox can't. It uses an **OpenAI-compatible** chat endpoint by
+default (any llama.cpp / vLLM / Ollama / LM Studio server). Start it before (or during)
+play:
+
+```
+tools/serve-advisors.sh             # serves http://127.0.0.1:8421  (override AI_ADVISOR_PORT)
+```
+
+Endpoint defaults (override via environment):
+
+```
+AI_ADVISOR_LLM_BASE_URL   default http://192.168.0.114:8040/v1
+AI_ADVISOR_LLM_API_KEY    default dummy
+AI_ADVISOR_LLM_MODEL      default: auto-discovered from /v1/models
+```
+
+To use Anthropic instead: `AI_ADVISOR_BACKEND=claude` with an `ANTHROPIC_API_KEY`.
+
+The mod reaches it with `fetch`; each chat turn posts the live game state and gets
+back a natural-language reply plus an updated **strategy** (victory goal, tech path,
+civic path, build order, focus mix, threat posture). The strategy is cached in the
+panel (per map seed, survives save/reload) and written human-readably to
+`advisors/strategies/<seed>.md`. Without the server running, the Chat tab shows an
+offline notice and the last cached strategy keeps steering the other tabs.
 
 ## Progress benchmarks (post Test of Time / 1.4.0)
 

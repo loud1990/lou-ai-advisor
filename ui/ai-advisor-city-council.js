@@ -28,6 +28,7 @@
  */
 import ContextManager from '/core/ui/context-manager/context-manager.js';
 import { getTracking } from './ai-advisor-dedications.js';
+import { getStrategy } from './ai-advisor-strategy.js';
 
 function safe(fn, dflt) { try { const v = fn(); return v == null ? dflt : v; } catch (e) { return dflt; } }
 
@@ -118,8 +119,16 @@ const KEYWORD_AFFINITY = [
 	[/SETTLER|MIGRANT|FOUNDER/, "expansion"],
 	[/GRANARY|FARM|FISHING|PASTURE|AQUEDUCT|SEWER/, "expansion"],
 	[/SCOUT/, "expansion"],
+	// Ocean-crossing / exploration ships are how you reach the Distant Lands in the
+	// Exploration Age — claiming new continents is expansion.
+	[/COG|CARAVEL|CARRACK|GALLEON|CLIPPER|EXPLORER|FLAGSHIP/, "expansion"],
 	[/EMBASSY|DIPLOM|PALACE_DIPLO/, "diplomacy"],
 ];
+
+// Situational, low-commitment projects the council should almost never pick over a
+// real building/unit (e.g. a one-off Cultural Festival / celebration). Strongly
+// down-weighted in scoring.
+const DEPRIORITIZE_RE = /FESTIVAL|CELEBRAT|CARNIVAL|PAGEANT/;
 
 function affinityFor(type, category) {
 	const t = String(type || "").toUpperCase();
@@ -228,7 +237,44 @@ function getEmpirePriorities() {
 		if (v.standing === "leading") w[v.key] += 0.4;
 		else if (v.standing === "competitive") w[v.key] += 0.25;
 	}
+	// Fold in the conversation-set strategy: its focus mix (fractions ~0.2 each)
+	// nudges every attribute, and the chosen Victory gets an extra push, so the
+	// builds a city recommends follow the plan agreed in the Chat tab.
+	const strategy = safe(() => getStrategy(), null);
+	if (strategy) {
+		const focus = strategy.focus || {};
+		for (const k in w) {
+			if (typeof focus[k] === "number") w[k] += focus[k] * 3; // 0.4 focus -> +1.2
+		}
+		const goalKey = { Military: "military", Cultural: "culture", Economic: "economy", Scientific: "science" }[strategy.victory_goal];
+		if (goalKey && goalKey in w) w[goalKey] += 1;
+	}
 	return w;
+}
+
+// --- situational context (age phase + the conversation-set strategy) ---------
+
+/** Where we are in the current Age: type + 0..1 progress + an "early" flag. */
+function ageContext() {
+	const frac = safe(() => {
+		const cur = Game.AgeProgressManager.getCurrentAgeProgressionPoints() || 0;
+		const max = Game.AgeProgressManager.getMaxAgeProgressionPoints() || 0;
+		return max > 0 ? Math.max(0, Math.min(1, cur / max)) : 0;
+	}, 0) || 0;
+	const ageType = safe(() => GameInfo.Ages.lookup(Game.age).AgeType, "") || "";
+	return { ageType, frac, isStart: frac < 0.30 };
+}
+
+/**
+ * The scoring context shared across a recommendation pass: the live age phase and
+ * the conversation-set strategy (its build-order priorities pre-uppercased for
+ * cheap name matching). Built once per city recommendation.
+ */
+function scoringContext() {
+	const strategy = safe(() => getStrategy(), null);
+	const buildPriorities = ((strategy && strategy.build_order && strategy.build_order.priorities) || [])
+		.map((p) => String(p || "").toUpperCase()).filter(Boolean);
+	return { strategy, age: ageContext(), buildPriorities };
 }
 
 // --- coordination: assign each city a focus -----------------------------------
@@ -374,7 +420,7 @@ function enumerateBuildables(city) {
 
 // --- scoring + recommendation -----------------------------------------------
 
-function scoreItem(item, priorities, focusKey) {
+function scoreItem(item, priorities, focusKey, ctx = {}) {
 	let score = 0;
 	let topAttr = null, topVal = 0;
 	for (const k in item.affinity) {
@@ -385,20 +431,53 @@ function scoreItem(item, priorities, focusKey) {
 	if (focusKey && item.affinity[focusKey]) score += item.affinity[focusKey] * 1.5;
 	if (item.recommended) score += 2;                         // base-game advisor agrees
 	if (item.turns != null) score += Math.max(0, 12 - item.turns) * 0.03; // gentle "sooner" nudge
-	return { score, topAttr: topAttr || focusKey };
+
+	let note = null;
+	const typeU = String(item.type || "").toUpperCase();
+
+	// (1) A one-off Festival/celebration should almost never beat a real build.
+	if (DEPRIORITIZE_RE.test(typeU)) score *= 0.12;
+
+	// (2) At the dawn of an Age the imperative is to expand and claim new land —
+	// in the Exploration Age that means racing to the Distant Lands. Push
+	// expansion/exploration builds (settlers, ocean-crossing ships) to the top
+	// while the Age is young, whatever the city's long-term focus.
+	const age = ctx.age || {};
+	if (age.isStart && item.affinity.expansion) {
+		const isExploration = String(age.ageType || "").includes("EXPLORATION");
+		score += item.affinity.expansion * (isExploration ? 5 : 3);
+		note = isExploration
+			? "race to settle and reach the Distant Lands before rivals while the new Age is young"
+			: "the Age is young — expand and claim strong land now";
+	}
+
+	// (3) Follow the plan agreed in Chat: items named in the strategy build order.
+	if (ctx.buildPriorities && ctx.buildPriorities.length) {
+		const nameU = String(item.name || "").toUpperCase();
+		if (ctx.buildPriorities.some((p) => typeU.includes(p) || nameU.includes(p) || (nameU && p.includes(nameU)))) {
+			score += 3.5;
+			note = note || "it's a priority in your agreed strategy";
+		}
+	}
+
+	return { score, topAttr: topAttr || focusKey, note };
 }
 
-function reasonFor(item, topAttr, focusKey, advisorName) {
+function reasonFor(item, topAttr, focusKey, advisorName, note) {
 	const attr = topAttr || focusKey || "economy";
 	const owner = ATTR_ADVISOR[attr] || "Council";
 	const label = ATTR_LABEL[attr] || "";
 	const focusMatch = focusKey && item.affinity[focusKey];
-	const lead = focusMatch
-		? `fits this city's ${ATTR_LABEL[focusKey]} focus`
-		: `advances the empire's ${label} goal`;
+	// A situational note (age-start exploration, strategy priority) overrides the
+	// generic "fits this focus" rationale so the advice explains the real reason.
+	const lead = note
+		? note
+		: (focusMatch
+			? `it fits this city's ${ATTR_LABEL[focusKey]} focus`
+			: `it advances the empire's ${label} goal`);
 	const rec = item.recommended ? " The city's own advisors flag it too." : "";
 	const t = item.turns != null && item.turns > 0 ? ` (~${item.turns} turns)` : "";
-	return `${advisorName} (${owner}): build ${item.name}${t} — it ${lead}.${rec}`;
+	return `${advisorName} (${owner}): build ${item.name}${t} — ${lead}.${rec}`;
 }
 
 /**
@@ -414,12 +493,13 @@ function recommendForCity(cid) {
 	const priorities = getEmpirePriorities();
 	if (!rec.focus) assignFoci([rec], priorities);
 
+	const ctx = scoringContext();
 	const items = enumerateBuildables(city);
 	const scored = items.map((it) => {
-		const { score, topAttr } = scoreItem(it, priorities, rec.focus);
+		const { score, topAttr, note } = scoreItem(it, priorities, rec.focus, ctx);
 		return {
 			item: it, score, topAttr,
-			reason: reasonFor(it, topAttr, rec.focus, rec.name),
+			reason: reasonFor(it, topAttr, rec.focus, rec.name, note),
 		};
 	}).sort((a, b) => b.score - a.score);
 

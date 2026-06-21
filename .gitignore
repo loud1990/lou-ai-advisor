@@ -10,5 +10,8 @@ __pycache__/
 # Generated KB (rebuild: python kb/ingest.py build)
 kb/kb.sqlite
 
+# Per-game strategy docs written by the strategist server
+advisors/strategies/
+
 # Claude Code session exports / conversation transcripts
 20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*.txt

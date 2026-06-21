@@ -15,12 +15,12 @@ const content = `
 
 	<!-- Tab bar: switches between the Council and Empire views. -->
 	<fxs-tab-bar
-		class="ai-advisor__tabs self-center mt-1 mb-2 w-128"
+		class="ai-advisor__tabs self-center mt-1 mb-2 w-192"
 		tab-style="flat"
 	></fxs-tab-bar>
 
 	<!-- ===================== DEDICATIONS TAB ===================== -->
-	<div class="ai-advisor__tab ai-advisor__tab-dedications flex flex-col w-128">
+	<div class="ai-advisor__tab ai-advisor__tab-dedications flex flex-col w-192">
 		<div
 			class="ai-advisor__intro font-body-sm text-accent-2 text-center max-w-128 mb-2"
 			data-l10n-id="LOC_AI_ADVISOR_DEDICATIONS_INTRO"
@@ -33,7 +33,7 @@ const content = `
 	</div>
 
 	<!-- ===================== COUNCIL TAB ===================== -->
-	<div class="ai-advisor__tab ai-advisor__tab-council flex flex-col w-128">
+	<div class="ai-advisor__tab ai-advisor__tab-council flex flex-col w-192">
 		<div
 			class="ai-advisor__intro font-body-sm text-accent-2 text-center max-w-128 mb-2"
 			data-l10n-id="LOC_AI_ADVISOR_PANEL_INTRO"
@@ -52,7 +52,7 @@ const content = `
 	</div>
 
 	<!-- ===================== CITIES TAB ===================== -->
-	<div class="ai-advisor__tab ai-advisor__tab-cities flex flex-col w-128" style="display:none">
+	<div class="ai-advisor__tab ai-advisor__tab-cities flex flex-col w-192" style="display:none">
 		<div
 			class="ai-advisor__intro font-body-sm text-accent-2 text-center max-w-128 mb-2"
 			data-l10n-id="LOC_AI_ADVISOR_CITIES_INTRO"
@@ -63,7 +63,7 @@ const content = `
 	</div>
 
 	<!-- ===================== TRIUMPHS TAB ===================== -->
-	<div class="ai-advisor__tab ai-advisor__tab-triumphs flex flex-col w-128" style="display:none">
+	<div class="ai-advisor__tab ai-advisor__tab-triumphs flex flex-col w-192" style="display:none">
 		<div
 			class="ai-advisor__intro font-body-sm text-accent-2 text-center max-w-128 mb-2"
 			data-l10n-id="LOC_AI_ADVISOR_TRIUMPHS_INTRO"
@@ -71,6 +71,25 @@ const content = `
 		<fxs-scrollable class="ai-advisor__scroll" handle-gamepad-pan="true">
 			<div class="ai-advisor__triumphs flex flex-col w-full pr-2"></div>
 		</fxs-scrollable>
+	</div>
+
+	<!-- ===================== CHAT TAB ===================== -->
+	<div class="ai-advisor__tab ai-advisor__tab-chat flex flex-col w-192" style="display:none">
+		<div
+			class="ai-advisor__intro font-body-sm text-accent-2 text-center max-w-128 mb-2"
+			data-l10n-id="LOC_AI_ADVISOR_CHAT_INTRO"
+		></div>
+		<fxs-scrollable class="ai-advisor__scroll ai-advisor__chat-scroll" handle-gamepad-pan="true">
+			<div class="ai-advisor__chat-messages flex flex-col w-full pr-2"></div>
+		</fxs-scrollable>
+		<!-- Input row: textbox + send button (placeholder + button filled by the panel). -->
+		<div class="ai-advisor__chat-input-row flex flex-row items-center w-full mt-2">
+			<fxs-textbox
+				class="ai-advisor__chat-input flex-auto"
+				enabled="true"
+			></fxs-textbox>
+			<div class="ai-advisor__chat-send-slot flex flex-row items-center ml-2"></div>
+		</div>
 	</div>
 
 	<div

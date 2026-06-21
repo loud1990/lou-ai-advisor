@@ -191,12 +191,14 @@ def assess(state: Dict[str, Any], rivals: Optional[Dict[str, Any]] = None) -> Di
 
     # --- one-line summary ----------------------------------------------------
     if out["mode"] == "relative":
-        out["summary"] = (
-            "Rival scores known — judge by the victory multiple "
-            f"(need {needed:g}× the 2nd-place player). " + "; ".join(
-                f"{k}: {v}" for k, v in relative.items()
-            )
+        # `needed` is None until the age clock (age_frac) is known, e.g. early in
+        # the age or when the caller can't supply it — phrase accordingly.
+        lead = (
+            f"Rival scores known — judge by the victory multiple (need {needed:g}× "
+            "the 2nd-place player). " if needed is not None else
+            "Rival scores known — judge by your lead over the 2nd-place player. "
         )
+        out["summary"] = lead + "; ".join(f"{k}: {v}" for k, v in relative.items())
     else:
         bits = [v for v in static.values()]
         out["summary"] = (

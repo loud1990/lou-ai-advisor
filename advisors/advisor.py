@@ -18,6 +18,7 @@ import json
 import os
 import sys
 import textwrap
+import urllib.request
 from typing import Any, Dict, List, Optional
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -116,7 +117,90 @@ class ClaudeBackend:
         return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text").strip()
 
 
-def default_backend() -> Optional[ClaudeBackend]:
+# OpenAI-compatible defaults (a local llama.cpp/vLLM/Ollama/LM Studio endpoint).
+# Override any of these via the AI_ADVISOR_LLM_* environment variables.
+DEFAULT_LLM_BASE_URL = "http://192.168.0.114:8040/v1"
+DEFAULT_LLM_API_KEY = "dummy"
+DEFAULT_LLM_MODEL = "qwen3.6-27b-iq4_ks"
+
+
+class OpenAIBackend:
+    """Chat-completions backend for any OpenAI-compatible server (llama.cpp, vLLM,
+    Ollama, LM Studio, ...).
+
+    Dependency-free: talks HTTP with urllib so the mod's Python stays stdlib-only.
+    Reasoning models that split their thinking into a separate `reasoning_content`
+    field are handled — we read `content` (the answer), so the token budget needs
+    to be generous enough for the model to finish thinking AND answer.
+    """
+
+    def __init__(self, base_url=None, api_key=None, model=None,
+                 max_tokens: int = 3500, temperature: float = 0.4, timeout: int = 180):
+        self.base_url = (base_url or os.environ.get("AI_ADVISOR_LLM_BASE_URL", DEFAULT_LLM_BASE_URL)).rstrip("/")
+        self.api_key = api_key or os.environ.get("AI_ADVISOR_LLM_API_KEY", DEFAULT_LLM_API_KEY)
+        self._model = model or os.environ.get("AI_ADVISOR_LLM_MODEL")  # None -> discover lazily
+        self.max_tokens = int(os.environ.get("AI_ADVISOR_LLM_MAX_TOKENS", max_tokens))
+        self.temperature = float(os.environ.get("AI_ADVISOR_LLM_TEMPERATURE", temperature))
+        self.timeout = timeout
+
+    @property
+    def model(self) -> str:
+        if not self._model:
+            self._model = self._discover_model() or DEFAULT_LLM_MODEL
+        return self._model
+
+    def _discover_model(self) -> Optional[str]:
+        try:
+            req = urllib.request.Request(
+                f"{self.base_url}/models",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+            )
+            with urllib.request.urlopen(req, timeout=10) as r:
+                data = json.loads(r.read().decode("utf-8"))
+            items = data.get("data") or []
+            return items[0]["id"] if items else None
+        except Exception:
+            return None
+
+    def generate(self, system: str, user: str) -> str:
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+        }
+        req = urllib.request.Request(
+            f"{self.base_url}/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json",
+                     "Authorization": f"Bearer {self.api_key}"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=self.timeout) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        msg = (data.get("choices") or [{}])[0].get("message") or {}
+        content = (msg.get("content") or "").strip()
+        if not content:  # reasoning model that spent its whole budget thinking
+            content = (msg.get("reasoning_content") or "").strip()
+        return content
+
+
+def default_backend():
+    """Pick an LLM backend. Prefers an OpenAI-compatible endpoint (configurable;
+    defaults to the local LAN server). Set AI_ADVISOR_BACKEND=claude (with an
+    ANTHROPIC_API_KEY) to use Anthropic instead."""
+    if os.environ.get("AI_ADVISOR_BACKEND", "").lower() == "claude" and os.environ.get("ANTHROPIC_API_KEY"):
+        try:
+            return ClaudeBackend()
+        except Exception as e:
+            print(f"ClaudeBackend unavailable: {e}", file=sys.stderr)
+    try:
+        return OpenAIBackend()  # construction never hits the network
+    except Exception as e:
+        print(f"OpenAIBackend unavailable: {e}", file=sys.stderr)
     if os.environ.get("ANTHROPIC_API_KEY"):
         try:
             return ClaudeBackend()

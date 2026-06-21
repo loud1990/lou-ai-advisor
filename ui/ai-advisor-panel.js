@@ -2,12 +2,16 @@ import Panel from '/core/ui/panel-support.js';
 import { MustGetElement } from '/core/ui/utilities/utilities-dom.js';
 import '/core/ui/components/fxs-tab-bar.js';
 import '/core/ui/components/fxs-scrollable.js';
+import '/core/ui/components/fxs-textbox.js';
 import content from './ai-advisor-panel.html.js';
 import {
 	getChosen, setChosen, clearChosen, hasChosenThisAge,
-	getAvailableTriumphs, getTracking,
+	getAvailableTriumphs, getTracking, ageFraction,
 } from './ai-advisor-dedications.js';
 import { syncCouncil, recommendForCity } from './ai-advisor-city-council.js';
+import {
+	getStrategy, hasStrategy, getChatLog, appendChat, sendChat,
+} from './ai-advisor-strategy.js';
 
 /**
  * AI Advisor panel.
@@ -71,11 +75,25 @@ const STYLE = `
 .ai-advisor__btn{padding:0.35rem 1.1rem;margin:0 0.3rem;border-radius:0.3rem;background:rgba(224,192,96,0.85);color:#1a1407;font-weight:700;cursor:pointer;border:none;}
 .ai-advisor__btn.disabled{background:rgba(255,255,255,0.14);color:#8c867a;cursor:default;}
 .ai-advisor__btn.secondary{background:rgba(255,255,255,0.12);color:#e8e2d4;}
+/* Chat tab: conversation log + input row */
+.ai-advisor__chat-scroll{height:40vh;min-height:16rem;}
+.ai-advisor__chat-msg{display:flex;flex-direction:column;padding:0.45rem 0.65rem;margin:0.22rem 0;border-radius:0.4rem;max-width:46rem;}
+.ai-advisor__chat-msg.user{align-self:flex-end;background:rgba(224,192,96,0.18);border:0.07rem solid rgba(224,192,96,0.4);}
+.ai-advisor__chat-msg.assistant{align-self:flex-start;background:rgba(0,0,0,0.30);border-left:0.22rem solid #56ccf2;}
+.ai-advisor__chat-msg.system{align-self:center;background:rgba(235,87,87,0.14);border:0.07rem solid rgba(235,87,87,0.4);text-align:center;}
+.ai-advisor__chat-role{font-weight:700;font-size:0.78rem;letter-spacing:0.03em;margin-bottom:0.12rem;opacity:0.8;}
+.ai-advisor__chat-text{color:#e8e2d4;white-space:pre-wrap;}
+.ai-advisor__chat-empty{color:#bcb6a8;font-style:italic;text-align:center;margin:1rem 0;}
+/* Strategy banner shown above the council advice once a plan exists */
+.ai-advisor__strategy{display:flex;flex-direction:column;padding:0.55rem 0.75rem;margin:0 0 0.4rem 0;background:rgba(224,192,96,0.12);border:0.07rem solid rgba(224,192,96,0.45);border-radius:0.3rem;}
+.ai-advisor__strategy-goal{font-weight:700;color:#e0c060;}
+.ai-advisor__strategy-line{color:#d9d2c4;font-size:0.85rem;margin-top:0.15rem;}
 `;
 
 const TABS = [
 	{ id: "dedications", label: "LOC_AI_ADVISOR_TAB_DEDICATIONS" },
 	{ id: "council", label: "LOC_AI_ADVISOR_TAB_COUNCIL" },
+	{ id: "chat", label: "LOC_AI_ADVISOR_TAB_CHAT" },
 	{ id: "cities", label: "LOC_AI_ADVISOR_TAB_CITIES" },
 	{ id: "triumphs", label: "LOC_AI_ADVISOR_TAB_TRIUMPHS" },
 ];
@@ -121,8 +139,13 @@ class AiAdvisorPanel extends Panel {
 	citiesContainer = null;
 	dedicationsContainer = null;
 	dedicationsActions = null;
+	chatMessages = null;
+	chatInput = null;
+	chatSendSlot = null;
 	_dotTimer = null;
 	_revealTimer = null;
+	_chatBusy = false;        // a chat turn is in flight
+	_kickoffDone = false;     // game-start victory prompt already posted
 	_pendingSelection = null; // working set of LegacyTypes during picking
 
 	onInitialize() {
@@ -133,6 +156,7 @@ class AiAdvisorPanel extends Panel {
 		this.tabPanels = {
 			dedications: MustGetElement(".ai-advisor__tab-dedications", this.Root),
 			council: MustGetElement(".ai-advisor__tab-council", this.Root),
+			chat: MustGetElement(".ai-advisor__tab-chat", this.Root),
 			cities: MustGetElement(".ai-advisor__tab-cities", this.Root),
 			triumphs: MustGetElement(".ai-advisor__tab-triumphs", this.Root),
 		};
@@ -143,6 +167,9 @@ class AiAdvisorPanel extends Panel {
 		this.citiesContainer = MustGetElement(".ai-advisor__cities", this.Root);
 		this.dedicationsContainer = MustGetElement(".ai-advisor__dedications", this.Root);
 		this.dedicationsActions = MustGetElement(".ai-advisor__dedications-actions", this.Root);
+		this.chatMessages = MustGetElement(".ai-advisor__chat-messages", this.Root);
+		this.chatInput = MustGetElement(".ai-advisor__chat-input", this.Root);
+		this.chatSendSlot = MustGetElement(".ai-advisor__chat-send-slot", this.Root);
 		this.enableOpenSound = true;
 		this.enableCloseSound = true;
 	}
@@ -163,7 +190,9 @@ class AiAdvisorPanel extends Panel {
 		this.buildTriumphs();
 		this.buildCities();
 		this.buildDedications();
+		this.buildChat();
 		this.startDeliberation();
+		this.maybeKickoff();
 	}
 
 	// --- tabs ----------------------------------------------------------------
@@ -194,6 +223,166 @@ class AiAdvisorPanel extends Panel {
 		super.onDetach();
 	}
 
+	// --- Chat: converse with the council to set/steer the game strategy -------
+
+	buildChat() {
+		// Send button (mod-styled, matching the dedications action buttons).
+		this.chatSendSlot.innerHTML = "";
+		this.chatSendSlot.appendChild(this.makeButton(
+			Locale.compose("LOC_AI_ADVISOR_CHAT_SEND"),
+			{ onClick: () => this.submitChat() },
+		));
+		// Placeholder + submit-on-Enter for the textbox.
+		safe(() => this.chatInput.setAttribute("placeholder", Locale.compose("LOC_AI_ADVISOR_CHAT_PLACEHOLDER")));
+		this.chatInput.addEventListener("text-edit-stop", (e) => {
+			if (e && e.detail && e.detail.confirmed) this.submitChat();
+		});
+		this.renderChat();
+	}
+
+	renderChat() {
+		const log = getChatLog();
+		this.chatMessages.innerHTML = "";
+		if (!log.length) {
+			const empty = document.createElement("div");
+			empty.classList.add("ai-advisor__chat-empty");
+			empty.textContent = "Type a message below to open the conversation.";
+			this.chatMessages.appendChild(empty);
+			return;
+		}
+		for (const m of log) this.addChatBubble(m.role, m.content);
+		this.scrollChatToEnd();
+	}
+
+	addChatBubble(role, text) {
+		// Drop the "no conversation yet" placeholder once a real message arrives.
+		const ph = this.chatMessages.querySelector(".ai-advisor__chat-empty");
+		if (ph) ph.remove();
+		const cls = role === "user" ? "user" : (role === "system" ? "system" : "assistant");
+		const wrap = document.createElement("div");
+		wrap.classList.add("ai-advisor__chat-msg", cls);
+		if (role !== "system") {
+			const r = document.createElement("div");
+			r.classList.add("ai-advisor__chat-role");
+			r.textContent = role === "user" ? "You" : "Council";
+			wrap.appendChild(r);
+		}
+		const t = document.createElement("div");
+		t.classList.add("ai-advisor__chat-text");
+		t.textContent = text;
+		wrap.appendChild(t);
+		this.chatMessages.appendChild(wrap);
+		return wrap;
+	}
+
+	scrollChatToEnd() {
+		safe(() => { this.chatMessages.scrollTop = this.chatMessages.scrollHeight; });
+	}
+
+	getChatInputValue() {
+		// fxs-textbox mirrors typed text to its `value` attribute on every keystroke
+		// (onTextInput -> Root.setAttribute), so read it the way fxs-editable-header does.
+		return safe(() => this.chatInput.getAttribute("value"), "") || "";
+	}
+
+	clearChatInput() {
+		safe(() => this.chatInput.setAttribute("value", ""));
+	}
+
+	async submitChat() {
+		if (this._chatBusy) return;
+		const msg = String(this.getChatInputValue()).trim();
+		if (!msg) return;
+		this._chatBusy = true;
+		this.clearChatInput();
+		appendChat("user", msg);
+		this.addChatBubble("user", msg);
+		const thinking = this.addChatBubble("assistant", Locale.compose("LOC_AI_ADVISOR_CHAT_THINKING") + "…");
+		this.scrollChatToEnd();
+
+		const result = await sendChat(msg, this.gatherChatState());
+		thinking.remove();
+		if (!result || !result.reply) {
+			this.addChatBubble("system", Locale.compose("LOC_AI_ADVISOR_CHAT_OFFLINE"));
+		} else {
+			appendChat("assistant", result.reply);
+			this.addChatBubble("assistant", result.reply);
+			this.refreshStrategyDependentTabs();
+		}
+		this.scrollChatToEnd();
+		this._chatBusy = false;
+	}
+
+	// Strategy just changed: re-render the advice that reads it.
+	refreshStrategyDependentTabs() {
+		safe(() => this.renderAdvice());
+		safe(() => this.buildCities());
+	}
+
+	// On a fresh game (no strategy, no chat yet) the council proactively proposes
+	// a victory + path — the "ask at the start of the game" prompt.
+	maybeKickoff() {
+		if (this._kickoffDone || hasStrategy() || getChatLog().length) return;
+		this._kickoffDone = true;
+		const idx = TABS.findIndex((t) => t.id === "chat");
+		safe(() => this.tabBar.setAttribute("selected-tab-index", String(idx)));
+		this.showTab("chat");
+		this._chatBusy = true;
+		const thinking = this.addChatBubble("assistant", Locale.compose("LOC_AI_ADVISOR_CHAT_THINKING") + "…");
+		sendChat(
+			"It's the start of a new game. Consider my leader, civ and situation, recommend which Victory I should pursue, and lay out the path — tech, civics, rough city build order, and how warlike to be. Then ask me to confirm or redirect.",
+			this.gatherChatState(),
+		).then((result) => {
+			thinking.remove();
+			if (!result || !result.reply) {
+				this.addChatBubble("system", Locale.compose("LOC_AI_ADVISOR_CHAT_OFFLINE"));
+			} else {
+				appendChat("assistant", result.reply);
+				this.addChatBubble("assistant", result.reply);
+				this.refreshStrategyDependentTabs();
+			}
+			this.scrollChatToEnd();
+			this._chatBusy = false;
+		});
+	}
+
+	// Richer state for the brain: identity, age/turn, rival standings and war
+	// status on top of the per-turn empire snapshot.
+	gatherChatState() {
+		const player = this.getLocalPlayer();
+		const s = this.gatherState();
+		s.turn = safe(() => Game.turn, null);
+		s.age = safe(() => Locale.compose(GameInfo.Ages.lookup(Game.age).Name), null);
+		s.age_frac = safe(() => ageFraction(), null);  // 0..1 progress through the Age (benchmarks)
+		s.leader = safe(() => Locale.compose(player.leaderName), null);
+		s.civ = safe(() => Locale.compose(player.civilizationFullName), null);
+
+		// Rival victory standings — only victory points + at-war are knowable.
+		const vic = this.gatherVictories();
+		const RIVAL_KEY = { military: "military", culture: "cultural", economy: "economic", science: "scientific" };
+		const rivals = {};
+		for (const v of vic.victories) {
+			const key = RIVAL_KEY[v.advisor];
+			if (key) rivals[key] = { me: v.myPoints, second: v.rivalsMax };
+		}
+		if (Object.keys(rivals).length) s.rivals = rivals;
+
+		// Who are we at war with? (engine hides rival military, so this is coarse.)
+		const myId = safe(() => GameContext.localPlayerID, -1);
+		const myDip = safe(() => player && player.Diplomacy, null);
+		const atWar = [];
+		if (myDip) {
+			for (const op of (safe(() => Players.getAlive().filter((p) => p.isMajor), []) || [])) {
+				if (op.id === myId) continue;
+				if (safe(() => myDip.isAtWarWith(op.id), false)) {
+					atWar.push(safe(() => Locale.compose(op.leaderName), "a rival"));
+				}
+			}
+		}
+		s.at_war = atWar;
+		return s;
+	}
+
 	// --- "thinking" animation, then reveal advice ---------------------------
 
 	startDeliberation() {
@@ -215,6 +404,7 @@ class AiAdvisorPanel extends Panel {
 	}
 
 	renderAdvice() {
+		this.councilEl.innerHTML = "";  // idempotent: safe to re-render on strategy change
 		const state = this.gatherState();
 		const vic = this.gatherVictories();
 		const byAdvisor = {};
@@ -224,7 +414,12 @@ class AiAdvisorPanel extends Panel {
 		for (const t of safe(() => getTracking().items, []) || []) {
 			(dedByAdvisor[t.advisorKey] ||= []).push(t);
 		}
-		ADVISORS.forEach((adv, i) => {
+		// The conversation-set strategy steers the council: show it up top and put
+		// the advisor who owns the chosen Victory first.
+		const strategy = safe(() => getStrategy(), null);
+		this.renderStrategyBanner(strategy);
+		const order = this.advisorOrder(strategy);
+		order.forEach((adv, i) => {
 			let text = ADVICE[adv.key](state);
 			const v = byAdvisor[adv.key];
 			if (v) {
@@ -261,6 +456,45 @@ class AiAdvisorPanel extends Panel {
 			// staggered fade-in
 			setTimeout(() => card.classList.add("shown"), 80 + i * 120);
 		});
+	}
+
+	// Maps a strategy victory_goal to the advisor key that owns it.
+	static GOAL_ADVISOR = { Military: "military", Cultural: "culture", Economic: "economy", Scientific: "science" };
+
+	// Order the advisors so the one who owns the chosen Victory leads.
+	advisorOrder(strategy) {
+		const goalKey = strategy && AiAdvisorPanel.GOAL_ADVISOR[strategy.victory_goal];
+		if (!goalKey) return ADVISORS.slice();
+		const lead = ADVISORS.filter((a) => a.key === goalKey);
+		const rest = ADVISORS.filter((a) => a.key !== goalKey);
+		return [...lead, ...rest];
+	}
+
+	// A banner above the council cards summarizing the conversation-set plan, so
+	// the council advice is visibly anchored to the strategy the leader chose.
+	renderStrategyBanner(strategy) {
+		if (!strategy || !strategy.victory_goal) return;
+		const banner = document.createElement("div");
+		banner.classList.add("ai-advisor__strategy");
+		const goal = document.createElement("div");
+		goal.classList.add("ai-advisor__strategy-goal");
+		goal.textContent = `Strategy: ${strategy.victory_goal} Victory`;
+		banner.appendChild(goal);
+		const nextTech = (strategy.tech_path || [])[0];
+		const nextCivic = (strategy.civic_path || [])[0];
+		const builds = ((strategy.build_order || {}).priorities || []).slice(0, 3);
+		const lines = [];
+		if (nextTech) lines.push(`Next tech: ${nextTech}`);
+		if (nextCivic) lines.push(`Next civic: ${nextCivic}`);
+		if (builds.length) lines.push(`Build priorities: ${builds.join(", ")}`);
+		if (strategy.threat_posture) lines.push(`Posture: ${strategy.threat_posture}`);
+		for (const l of lines) {
+			const row = document.createElement("div");
+			row.classList.add("ai-advisor__strategy-line");
+			row.textContent = l;
+			banner.appendChild(row);
+		}
+		this.councilEl.appendChild(banner);
 	}
 
 	// --- state gathering (mirrors ui/ai-advisor-state.js) -------------------
@@ -797,6 +1031,14 @@ class AiAdvisorPanel extends Panel {
 		head.appendChild(title); head.appendChild(pill);
 		card.appendChild(head);
 
+		// The goal itself (the Triumph's challenge) — keep it visible after selection.
+		if (t.requirement) {
+			const req = document.createElement("div");
+			req.classList.add("ai-advisor__ded-req");
+			req.innerHTML = t.requirement; // stylized rich text
+			card.appendChild(req);
+		}
+
 		// progress bar
 		if (t.total > 0) {
 			const barWrap = document.createElement("div");
@@ -825,6 +1067,15 @@ class AiAdvisorPanel extends Panel {
 				list.appendChild(row);
 			}
 			card.appendChild(list);
+		}
+
+		// The Dedication this Triumph unlocks for the NEXT Age — the payoff for the
+		// goal, kept visible so the leader remembers why they're chasing it.
+		if (t.reward) {
+			const rew = document.createElement("div");
+			rew.classList.add("ai-advisor__ded-reward");
+			rew.innerHTML = `<span class="ai-advisor__ded-reward-label">Next-Age Dedication:</span>${t.reward}`;
+			card.appendChild(rew);
 		}
 		return card;
 	}
